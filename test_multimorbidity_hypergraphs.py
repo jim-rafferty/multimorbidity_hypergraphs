@@ -3,7 +3,7 @@ import pytest
 import multimorbidity_hypergraphs as hgt
 import numpy as np
 import pandas as pd
-import numba
+#import numba
 import statsmodels.stats.proportion as smsp
 import scipy.stats as sst
 

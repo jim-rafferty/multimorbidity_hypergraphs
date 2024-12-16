@@ -2,7 +2,19 @@
 #[allow(dead_code)]
 #[allow(unused_imports)]
 
-extern crate intel_mkl_src;
+// extern crate intel_mkl_src;
+
+#[cfg(target_os = "macos")]
+mod cond_imports {
+    extern crate openblas_src;
+}
+
+#[cfg(target_os = "windows")]
+mod cond_imports {
+    extern crate intel_mkl_src;
+}
+
+
 
 use crate::types::*;
 use crate::interest_measures::*;
