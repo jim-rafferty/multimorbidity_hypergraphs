@@ -267,7 +267,7 @@ fn evc_iteration_sparse(
         .map(|(x, y)| (x.1 - y.1).powf(2.0))
         .sum::<f64>()
         .sqrt() / adj_mat.shape().0 as f64;
-    
+
     //println!("iter: {} of {}, {}, {}, {}", iter_no, max_iterations, err_estimate, tolerance, err_estimate < tolerance);
     
     if (err_estimate < tolerance) | (iter_no > max_iterations) {
@@ -356,7 +356,7 @@ fn bipartite_eigenvector_centrality(
     // millions square but most entries are zero.
     
     let eye: CsMat<f64> = CsMat::eye(adjacency_matrix.shape().0);
-    let eye_scaled = eye.map(|&x| x * (adjacency_matrix.shape().0 as f64));
+    let eye_scaled = eye.map(|&x| x * (adjacency_matrix.shape().0 as f64).sqrt());
         
     evc_iteration_sparse(
         &(&adjacency_matrix - &eye_scaled),

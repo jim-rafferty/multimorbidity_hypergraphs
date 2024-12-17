@@ -184,7 +184,7 @@ impl Hypergraph {
         
         let iterations = match max_iterations {
             Some(x) => x,
-            None => 100,
+            None => 500,
         };
         
         Ok(

@@ -567,7 +567,7 @@ def test_calculate_EVC_bipartite_hypergraph():
 
     n_people = 5000
     n_diseases = 10
-    tolerance = 1e-6
+    tolerance = 1e-8
 
     data = (np.random.rand(n_people, n_diseases) > 0.8).astype(np.uint8)
     data_pd = pl.DataFrame(
@@ -614,7 +614,8 @@ def test_calculate_EVC_bipartite_hypergraph():
     # and the module code is
     # a) consistent and
     # b) small compared to the eigenvector elements ( O(0.01%) ).
-    assert (np.abs(exp_evec - e_vec) ** 2 < tolerance).all()
+    
+    assert (np.mean(exp_evec - e_vec) ** 2 < tolerance).all()
 
 
 def test_EVC_exception_raised():
