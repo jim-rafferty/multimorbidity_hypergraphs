@@ -6,7 +6,7 @@ pub mod undirected_hypergraphs;
 pub mod directed_hypergraphs;
 
 use ndarray::Array2;
-use numpy::{ToPyArray, PyArray2};
+use numpy::{ToPyArray, PyArray2, Element};
 
 use pyo3::prelude::*;
 use pyo3::{PyAny, PyResult};
@@ -24,11 +24,12 @@ fn print_type_of<T>(_: &T) {
 }
 */
 
-pub fn py_dataframe_to_rust_data(df: &PyAny) -> PyResult<(Vec<String>, Array2<u8>)> {
+pub fn py_dataframe_to_rust_data<T>(df: &PyAny) -> PyResult<(Vec<String>, Array2<T>)> 
+    where T: Element {
     
     let cols: Vec<String> = df.getattr("columns")?.extract()?;
-    let data: &PyArray2<u8> = df.call_method0("to_numpy")?.extract()?;
-    let array: Array2<u8> = data.to_owned_array();
+    let data: &PyArray2<T> = df.call_method0("to_numpy")?.extract()?;
+    let array: Array2<T> = data.to_owned_array();
 
     Ok((cols, array))
 }
@@ -49,22 +50,6 @@ pub struct Hypergraph{
     pub node_list: Vec<String>,
 }
 
-
-#[pyclass]
-pub struct DiHypergraph {
-    #[pyo3(get, set)]
-    pub incidence_matrix: Py<PyArray2<i8>>, 
-    #[pyo3(get, set)]
-    pub hyperedge_list: Vec<PyObject>, 
-    #[pyo3(get, set)]
-    pub hyperedge_weights: Vec<f64>,
-    #[pyo3(get, set)]
-    pub hyperarc_list: Vec<HyperArc>,
-    #[pyo3(get, set)]
-    pub hyperarc_weights: Vec<f64>,
-}
-
-
 trait ToRust<T> {
     fn to_rust(&self) -> T;
 }
@@ -80,7 +65,7 @@ impl Hypergraph {
                 // TODO - figure out if it's possible to call a self method
                 // from this constructor. Until then we have C&P code... :(
                 
-                let (cols, data) = py_dataframe_to_rust_data(x).unwrap();
+                let (cols, data) = py_dataframe_to_rust_data::<u8>(x).unwrap();
                 let h = compute_undirected_hypergraph(&data);
                 
                 Python::with_gil(|py| 
@@ -122,7 +107,7 @@ impl Hypergraph {
         df: &PyAny
     ) {
         
-        let (cols, data) = py_dataframe_to_rust_data(df).unwrap();
+        let (cols, data) = py_dataframe_to_rust_data::<u8>(df).unwrap();
         let h = compute_undirected_hypergraph(&data);
         
         
@@ -269,6 +254,73 @@ impl ToRust<HypergraphBase> for Hypergraph {
         )
     }
 }
+
+
+#[pyclass]
+pub struct DiHypergraph {
+    #[pyo3(get, set)]
+    pub incidence_matrix: Py<PyArray2<i8>>, 
+    #[pyo3(get, set)]
+    pub hyperedge_list: Vec<PyObject>, 
+    #[pyo3(get, set)]
+    pub hyperedge_weights: Vec<f64>,
+    #[pyo3(get, set)]
+    pub hyperarc_list: Vec<HyperArc>,
+    #[pyo3(get, set)]
+    pub hyperarc_weights: Vec<f64>,
+}
+
+
+
+#[pymethods]
+impl DiHypergraph {
+    #[new]
+    fn new(data: Option<&PyAny>) -> Self {
+        
+        match data {
+            Some(x) => {
+                
+                let (cols, data) = py_dataframe_to_rust_data::<i8>(x).unwrap();
+                let h = compute_directed_hypergraph(&data);
+                
+                Python::with_gil(|py| 
+                    DiHypergraph{
+                        incidence_matrix: h.incidence_matrix.to_pyarray(py).to_owned(), 
+                        hyperedge_list: h.hyperedge_list.iter()
+                            .map(|array| PyTuple::new(py, array.to_vec()).into())
+                            .collect::<Vec<PyObject>>(),
+                        hyperedge_weights: h.hyperedge_weights.to_vec(), 
+                        hyperarc_list: h.hyperarc_list.to_vec(), 
+                        hyperarc_weights: h.hyperarc_weights.to_vec(), 
+                    }
+                )
+            },
+            None => Python::with_gil(|py| 
+                DiHypergraph{
+                    incidence_matrix: PyArray2::zeros(py, [0,0], false).into(), 
+                    hyperedge_list: Vec::new(),
+                    hyperedge_weights: Vec::new(),
+                    hyperarc_list: Vec::new(),
+                    hyperarc_weights: Vec::new(),
+                }
+            ),
+        }
+    }
+    
+    /*
+    fn compute_diHypergraph(
+        &mut self, 
+        df: &PyAny
+    ) {    
+        
+        let (cols, data) = py_dataframe_to_rust_data::<i8>(x).unwrap();
+        
+        let ps = compute_progset(&data);
+        let inc_mat = compute_incidence_matrix(&ps.0);
+    }
+    */
+}
+
 
 #[pymodule]
 pub fn multimorbidity_hypergraphs(_py: Python, m: &PyModule) -> PyResult<()> {

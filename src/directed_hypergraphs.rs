@@ -878,5 +878,9 @@ mod tests {
         assert_eq!(out.hyperedge_weights, expected.hyperedge_weights);
         assert_eq!(out.hyperarc_list, expected.hyperarc_list);
         assert_eq!(out.hyperarc_weights, expected.hyperarc_weights);
+        
+        println!("{:?}", expected.hyperedge_list);
+        
+        panic!("oh no")
     }
 }

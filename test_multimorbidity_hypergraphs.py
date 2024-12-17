@@ -785,6 +785,56 @@ def test_degree_centrality_exception_raised():
         h.degree_centrality(rep="oh no!")
 
 
+def test_DiHypergraph_no_data_creation():
+    """
+    Tests is a DiHypergraph is created correctly
+    """
+    h = hgt.DiHypergraph()
+    assert len(h.hyperedge_weights) == 0
+
+def test_DiHypergraph_with_data_creation():
+
+    """
+    Tests is a DiHypergraph is created correctly
+    """
+    data = np.array([[ 0,  1,  2,],
+            [ 0,  1,  2,],
+            [ 0,  1,  2,],
+            [ 2,  0,  1,],
+            [ 1,  2, -1,],
+            [ 0, -1, -1,],
+            [ 2, -1, -1,],
+            [ 1,  0,  2,],
+            [ 0,  1, -1,],
+            [ 0,  2, -1,]])
+    
+    data_pd = pl.DataFrame(
+        data,
+        schema=[("disease_{}".format(i), pl.Int8) for i in range(data.shape[1])]
+    )
+    
+    h = hgt.DiHypergraph(data_pd)
+    
+    expected_inc_mat = np.array([[-1,  1,  0],
+            [-1, -1,  1],
+            [ 1,  0, -1],
+            [-1,  1, -1],
+            [ 0, -1,  1],
+            [ 1, -1,  0],
+            [-1,  0,  1],
+            [1,  0,  0],
+            [0,  1,  0],
+            [0,  0,  1]])
+            
+    expected_hyperedge_weights = np.array([0.13157894736842105, 0.1, 0.06896551724137931, 0.1, 0.05, 0.13157894736842105, 0.1, 0.06896551724137931, 0.17142857142857143, 0.07142857142857142, 0.09090909090909091])
+    expected_hyperarc_weights = np.array([0.10526315789473684, 0.02631578947368421, 0.08, 0.02, 0.034482758620689655, 0.034482758620689655, 0.08, 0.02, 0.05, 0.10526315789473684, 0.02631578947368421, 0.05, 0.05, 0.0, 0.0, 0.03571428571428571])
+    
+    
+    assert (h.incidence_matrix == expected_inc_mat).all()
+    assert (h.hyperedge_weights == expected_hyperedge_weights).all()
+    assert (h.hyperarc_weights == expected_hyperarc_weights).all()
+    # TODO - tests for other fields (not super important as the rust tests cover them)
+
 def test_benchmarking_compute_hypergraph_5k_10(benchmark):
 
     n_people = 5000
