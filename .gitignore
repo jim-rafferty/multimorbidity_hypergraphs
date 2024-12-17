@@ -19,3 +19,6 @@ multimorbidity_hypergraphs_rs/Cargo.lock
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
 
+# build folder
+.maturin_env
+

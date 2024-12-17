@@ -2,8 +2,6 @@
 #[allow(dead_code)]
 #[allow(unused_imports)]
 
-// extern crate intel_mkl_src;
-
 #[cfg(target_os = "macos")]
 mod cond_imports {
     extern crate openblas_src;
@@ -13,7 +11,6 @@ mod cond_imports {
 mod cond_imports {
     extern crate intel_mkl_src;
 }
-
 
 
 use crate::types::*;
@@ -29,12 +26,12 @@ use ndarray::{
     Axis,
     arr1
 };
-use sprs::{CsMat, TriMat};
+use sprs::{CsMat, TriMat, CsVecI};
+use sprs::linalg::bicgstab::BiCGSTAB;
 use rand::Rng;
 use itertools::Itertools;
 use rayon::prelude::*;
 use std::collections::HashSet;
-use log::warn;
 use std::cmp;
 
 pub fn compute_undirected_hypergraph(data: &Array2<u8>) -> HypergraphBase {
@@ -227,59 +224,64 @@ fn evc_iteration(
 
 fn evc_iteration_sparse(
     adj_mat: &CsMat<f64>,
-    eigenvector: &Array1<f64>,
+    eigenvector: &CsVecI<f64>,
     tolerance: f64,
     iter_no: u32,
     max_iterations: u32,
 ) -> Array1<f64> {
     
-    // NOTE(jim): The power iteration method for the bipartite rep
-    // is a terrible choice because the adjacency matrix is almost always
-    // singular. That means the non-zero eigenvalues form real +/- pairs 
-    // and the algorithm fails to converge. To get around that I am adding a 
-    // small positive offset to all entries in the adjacency matrix, but 
-    // that means I'm not strictly calculating the EVC of the adjacency matrix
-    // any more, and the tests fail. Moreover, because the offset is small the 
-    // convergence is really slow. On the bright side, the result is a pretty close 
-    // approximation to the correct answer.
+   let x0 = CsVecI::new(
+        adj_mat.shape().0,
+        (0..adj_mat.shape().0).collect(),
+        normalised_vector_init(adj_mat.shape().0)
+    );
     
-    // BiCGSTAB is currently being worked on by the sprs developers, so hopefully 
-    // I will be able to make use of that soon...
+    let res = BiCGSTAB::<'_, f64, _, _>::solve(
+        adj_mat.view(),
+        x0.view(),
+        eigenvector.view(),
+        1e-15, // NOTE(jim): might want to make these user modifiable
+        1000,
+    ).unwrap();
     
-    let offset = eigenvector.sum() * 0.01;    
-    let mut eigenvector_new = adj_mat * eigenvector + offset;
-
-    let evnew_norm = eigenvector_new
+    let norm_val: f64 = res.x()
         .iter()
-        .map(|x| x.powf(2.0))
+        .map(|x| (x.1.powf(2.0)))
         .sum::<f64>()
         .sqrt();
     
-    eigenvector_new = eigenvector_new
-        .iter() 
-        .map(|x| x / evnew_norm)
-        .collect::<Array1<_>>();    
-    
-    let err_estimate = eigenvector_new
+    let (indices, values): (Vec<_>, Vec<_>) = res.x()
         .iter()
-        .zip(eigenvector)
-        .map(|(&x, &y)| (x - y).powf(2.0))
-        .sum::<f64>()
-        .sqrt();
-
+        .map(|x| (x.0, x.1.abs() / norm_val))
+        .unzip();
     
-
+    let ev_new = CsVecI::new(adj_mat.shape().0, indices, values);
+    
+    let err_estimate = ev_new
+        //.to_dense()
+        .iter()
+        .zip(eigenvector
+            //.to_dense()
+            .iter()
+        )
+        .map(|(x, y)| (x.1 - y.1).powf(2.0))
+        .sum::<f64>()
+        .sqrt() / adj_mat.shape().0 as f64;
+    
+    //println!("iter: {} of {}, {}, {}, {}", iter_no, max_iterations, err_estimate, tolerance, err_estimate < tolerance);
+    
     if (err_estimate < tolerance) | (iter_no > max_iterations) {
-        eigenvector_new 
+        ev_new.to_dense()
     } else {
         evc_iteration_sparse(
             adj_mat,
-            &eigenvector_new,
+            &ev_new.to_owned(),
             tolerance,
             iter_no + 1,
             max_iterations,
         )
-    }   
+    } 
+
 }
 
 
@@ -305,11 +307,7 @@ fn bipartite_eigenvector_centrality(
     max_iterations: u32,
 ) -> Array1<f64> {
     
-    warn!("WARNING: This currently calculates the eigenvector centrality of the adjacency matrix
-    plus a small offset. This is because of limitations in the external libraries used. The 
-    eigenvector centralities returned are not exactly correct, though the ordering of the 
-    centralities should be correct. Do not rely on this if it's mission critical.");
-    
+
     let m_size = incidence_matrix.shape();
     let n_edges = m_size[0]; let n_nodes = m_size[1];
     
@@ -347,29 +345,26 @@ fn bipartite_eigenvector_centrality(
         a.to_csr()
     };
     
-    
-    let eigenvector = Array::from_vec(
+    let eigenvector = CsVecI::new(
+        total_elems,
+        (0..total_elems).collect(),
         normalised_vector_init(total_elems)
     );
     
     
-    // NOTE(jim): At the moment, sprs doesn't support a lot of linear algebra
-    // operations and eig is one of them. We're going to use the iterative method
-    // to find the eigenvector, but at some point in the future we will probably 
-    // use an accelerated method.
-    // Also note, this matrix really does need to be sparse because it's potentially
+    // NOTE(jim): this matrix really does need to be sparse because it's potentially
     // millions square but most entries are zero.
     
+    let eye: CsMat<f64> = CsMat::eye(adjacency_matrix.shape().0);
+    let eye_scaled = eye.map(|&x| x * (adjacency_matrix.shape().0 as f64));
+        
     evc_iteration_sparse(
-        &adjacency_matrix,
+        &(&adjacency_matrix - &eye_scaled),
         &eigenvector,
         tolerance,
-        1,
+        0,
         max_iterations,
     )
-    
-
-
 }
 
 pub fn eigenvector_centrality(
@@ -446,7 +441,7 @@ pub fn eigenvector_centrality(
             max_iterations,
         ).into_iter().collect::<Vec<_>>(),
     };
-
+    
     evc_iteration(
         inc_mat.view(),
         &weights,
@@ -1420,11 +1415,12 @@ mod tests {
             .map(|x| x / ex_norm)
             .collect::<Vec<_>>();             
            
-        let tol = 0.00001;
+        let tol = 1e-6;
+        let between_iter_tol = 1e-8;
         let res = eigenvector_centrality(
             &h,
-            50, 
-            tol,
+            100, 
+            between_iter_tol,
             Representation::Bipartite,
             true
         );    
@@ -1439,7 +1435,8 @@ mod tests {
             .sum::<f64>()
             .sqrt() / expected.len() as f64;  
             
-        println!("RMS error = {}", rms_error);            
+        println!("RMS error = {}", rms_error);     
+        println!("tol = {}", tol);            
         
         assert!(rms_error < tol);
    }
@@ -1503,11 +1500,12 @@ mod tests {
             .map(|x| x / ex_norm)
             .collect::<Vec<_>>();             
            
-        let tol = 0.00001;
+        let tol = 1e-6;
+        let between_iter_tol = 1e-8;
         let res = eigenvector_centrality(
             &h,
             200, 
-            tol,
+            between_iter_tol,
             Representation::Bipartite,
             true
         );    

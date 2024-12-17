@@ -20,7 +20,7 @@ rand = "0.8.5"
 
 ndarray = { version = "0.15", features = ["blas"] }
 ndarray-rand = "0.14.0"
-sprs = "=0.11.1"
+sprs = ">=0.11.2"
 log = "0.4"
 numpy = "0.20.0"
 polars = "0.33.2"
