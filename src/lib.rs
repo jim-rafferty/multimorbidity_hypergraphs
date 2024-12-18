@@ -223,7 +223,7 @@ impl Hypergraph {
 impl ToRust<HypergraphBase> for Hypergraph {
     fn to_rust(&self) -> HypergraphBase {
         
-        Python::with_gil(|py|
+        Python::with_gil(|py| 
             HypergraphBase{
                 incidence_matrix: self.incidence_matrix
                     .as_ref(py)
@@ -307,18 +307,24 @@ impl DiHypergraph {
         }
     }
     
-    /*
-    fn compute_diHypergraph(
+    fn compute_hypergraph(
         &mut self, 
         df: &PyAny
-    ) {    
+    ) {
         
-        let (cols, data) = py_dataframe_to_rust_data::<i8>(x).unwrap();
+        let (cols, data) = py_dataframe_to_rust_data::<i8>(df).unwrap();
+        let h = compute_directed_hypergraph(&data);
         
-        let ps = compute_progset(&data);
-        let inc_mat = compute_incidence_matrix(&ps.0);
+        Python::with_gil(|py| {
+            self.incidence_matrix = h.incidence_matrix.to_pyarray(py).to_owned();
+            self.hyperedge_list = h.hyperedge_list.iter()
+                .map(|array| PyTuple::new(py, array.to_vec()).into())
+                .collect::<Vec<PyObject>>();
+            self.hyperedge_weights = h.hyperedge_weights.to_vec();
+            self.hyperarc_list = h.hyperarc_list.to_vec();
+            self.hyperarc_weights = h.hyperarc_weights.to_vec();
+        });
     }
-    */
 }
 
 
