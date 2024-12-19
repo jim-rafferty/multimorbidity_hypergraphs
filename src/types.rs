@@ -10,6 +10,11 @@ pub enum Representation {
     Bipartite,
 }
 
+pub enum HyperedgeEnd {
+    Head,
+    Tail
+}
+
 #[derive(Debug)]
 pub struct HypergraphBase {
     pub incidence_matrix: Array2<u8>, 

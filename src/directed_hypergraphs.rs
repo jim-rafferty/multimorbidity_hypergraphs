@@ -308,6 +308,32 @@ fn compute_incidence_matrix(progset: &IndexSet<Array1<i8>>) -> Array2<i8> {
 }
 
 
+fn compute_head_tail_inc_mat(
+    inc_mat: &Array2<i8>,
+    end: HyperedgeEnd,
+) -> Array2<i8> {
+    
+    match end {
+        HyperedgeEnd::Head => inc_mat.map(|&x| {
+                if x < 0 {
+                    0
+                } else {
+                    x
+                }
+            }),
+            
+    HyperedgeEnd::Tail => inc_mat.map(|&x| {
+                if x > 0 {
+                    0
+                } else {
+                    x
+                }
+            })
+    }
+}
+
+
+
 fn compute_node_prev(
     data: &Array2<i8>
 ) -> Array1<usize> {
@@ -500,6 +526,8 @@ fn compute_single_progset(
         },
     }
 }
+
+
 
 
 #[cfg(test)]
@@ -695,6 +723,79 @@ mod tests {
         );
         
     }
+    #[test]
+    fn di_compute_head_tail_incidence_matrix_t() {
+        
+        let data = array![
+            [ 0,  1,  2,],
+            [ 0,  1,  2,],
+            [ 0,  1,  2,],
+            [ 2,  0,  1,],
+            [ 1,  2, -1,],
+            [ 0, -1, -1,],
+            [ 2, -1, -1,],
+            [ 1,  0,  2,],
+            [ 0,  1, -1,],
+            [ 0,  2, -1,],
+        ];
+        
+        let expected_head = array![
+            [0,  1,  0],
+            [0, 0,  1],
+            [ 1,  0, 0],
+            [0,  1, 0],
+            [ 0, 0,  1],
+            [ 1, 0,  0],
+            [0,  0,  1],
+            [1,  0,  0],
+            [0,  1,  0],
+            [0,  0,  1],
+        ];
+        
+        let expected_tail = array![
+            [-1,  0,  0],
+            [-1, -1,  0],
+            [ 0,  0, -1],
+            [-1,  0, -1],
+            [ 0, -1,  0],
+            [ 0, -1,  0],
+            [-1,  0,  0],
+            [0,  0,  0],
+            [0,  0,  0],
+            [0,  0,  0],
+        ];
+        
+        let ps = compute_progset(&data);
+        let out = compute_incidence_matrix(&ps.0);
+        let out_head = compute_head_tail_inc_mat(&out, HyperedgeEnd::Head);
+        let out_tail = compute_head_tail_inc_mat(&out, HyperedgeEnd::Tail);
+
+        println!("{:?}", expected_head);
+        println!("{:?}", out_head);
+        
+        println!("{:?}", expected_tail);
+        println!("{:?}", out_tail);
+        
+        // NOTE - the order of axes does not matter, so use an iterator over
+        // rows and collect them into a HashSet for comparison.
+        assert_eq!(
+            out_head
+                .axis_iter(Axis(0))
+                .collect::<HashSet<_>>(), 
+            expected_head
+                .axis_iter(Axis(0))
+                .collect::<HashSet<_>>()
+        );
+        assert_eq!(
+            out_tail
+                .axis_iter(Axis(0))
+                .collect::<HashSet<_>>(), 
+            expected_tail
+                .axis_iter(Axis(0))
+                .collect::<HashSet<_>>()
+        );
+        
+    }
     
     #[test]
     fn di_construct_node_prev_t() {
@@ -881,6 +982,6 @@ mod tests {
         
         println!("{:?}", expected.hyperedge_list);
         
-        panic!("oh no")
+        //panic!("oh no")
     }
 }
