@@ -1014,4 +1014,34 @@ mod tests {
         
         //panic!("oh no")
     }
+    #[test]
+    fn di_compute_degree_vectors() {
+        let data = array![
+            [ 0,  1,  2,],
+            [ 0,  1,  2,],
+            [ 0,  1,  2,],
+            [ 2,  0,  1,],
+            [ 1,  2, -1,],
+            [ 0, -1, -1,],
+            [ 2, -1, -1,],
+            [ 1,  0,  2,],
+            [ 0,  1, -1,],
+            [ 0,  2, -1,],
+        ];
+        
+        let ps = compute_progset(&data);
+        let inc_mat = compute_incidence_matrix(&ps.0);
+        let out_head = compute_head_tail_inc_mat(&inc_mat, HyperedgeEnd::Head);
+        let out_tail = compute_head_tail_inc_mat(&inc_mat, HyperedgeEnd::Tail);
+        
+        let exp_node_degree_head = array![0.17777778, 0.26570048, 0.44057971];
+        let exp_node_degree_tail = array![0.56183575, 0.3294686 , 0.21014493];
+        let exp_node_degree_head = array![1., 1., 1., 1., 1., 1., 1., 1., 1., 1.];
+        let exp_edge_degree_tail = array![1., 1., 1., 1., 1., 1., 1., 1., 2., 2.];
+        
+        
+        
+        //let edge_degree_tail = 
+        
+    }
 }

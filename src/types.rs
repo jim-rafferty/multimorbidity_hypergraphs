@@ -46,3 +46,5 @@ pub struct DiHypergraphBase {
     pub hyperarc_list: Array1<HyperArc>,
     pub hyperarc_weights: Array1<f64>,
 }
+
+

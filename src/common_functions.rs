@@ -1,5 +1,5 @@
 
-use ndarray::Axis;
+use ndarray::{Axis, Array1, Array2};
 use sprs::{CsMat, TriMat};
 
 use crate::types::*;
@@ -16,38 +16,38 @@ pub fn diag_sprs(
     a.to_csr()
 }
 
-pub fn degree_centrality(
-    h: &HypergraphBase, 
+pub fn degree_centrality<T: std::clone::Clone>(
+    incidence_matrix: &Array2<T>, 
     rep: Representation,
-    weighted: bool
-) -> Vec<f64> {
+    weights: Option<Vec<f64>> // maybe a vec?
+) -> Vec<f64> where f64: From<T>{
     
-    match (rep, weighted) {
-        (Representation::Standard, true) => {
+    match (rep, weights) {
+        (Representation::Standard, Some(weight_array)) => {
             let inc_mat: CsMat<_> = CsMat::csr_from_dense(
-                h.incidence_matrix.mapv(|x| x as f64).view(), 0.0
+                incidence_matrix.mapv(|x| f64::from(x)).view(), 0.0
             );
-            let w = diag_sprs(&h.edge_weights);
+            let w = diag_sprs(&weight_array);
             let m = &w * & inc_mat;
             m.to_dense().sum_axis(Axis(0)).to_vec()
         }
-        (Representation::Standard, false) => {
-            h.incidence_matrix
-                .mapv(|x| x as f64)
+        (Representation::Standard, None) => {
+            incidence_matrix
+                .mapv(|x| f64::from(x))
                 .sum_axis(Axis(0))
                 .to_vec()
         }
-        (Representation::Dual, true) => {
+        (Representation::Dual, Some(weight_array)) => {
             let inc_mat: CsMat<_> = CsMat::csr_from_dense(
-                h.incidence_matrix.mapv(|x| x as f64).view(), 0.0
+                incidence_matrix.mapv(|x| f64::from(x)).view(), 0.0
             );
-            let w = diag_sprs(&h.node_weights);
+            let w = diag_sprs(&weight_array);
             let m = &inc_mat * &w;
             m.to_dense().sum_axis(Axis(1)).to_vec()
         }
-        (Representation::Dual, false) => {
-            h.incidence_matrix
-                .mapv(|x| x as f64)
+        (Representation::Dual, None) => {
+            incidence_matrix
+                .mapv(|x| f64::from(x))
                 .sum_axis(Axis(1))
                 .to_vec()
         }

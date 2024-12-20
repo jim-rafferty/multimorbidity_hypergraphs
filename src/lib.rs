@@ -207,14 +207,23 @@ impl Hypergraph {
             None => Representation::Standard
         };
         
-        let weight = match weighted {
+        let weight_bool = match weighted {
             Some(x) => x,
             None => true
         };
         
+        let h = self.to_rust();
+        
+        let weight = match (weight_bool, &representation) {
+            (false, _) => None,
+            (true, Representation::Standard) => Some(h.edge_weights),
+            (true, Representation::Dual) => Some(h.node_weights),
+            (_, Representation::Bipartite) => panic!("Bipartite representation not supported"),
+        };
+        
         Ok(
-            degree_centrality(
-                &self.to_rust(),
+            degree_centrality::<u8>(
+                &h.incidence_matrix,
                 representation,
                 weight
             )
