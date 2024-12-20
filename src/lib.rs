@@ -4,6 +4,7 @@ pub mod types;
 pub mod interest_measures;
 pub mod undirected_hypergraphs;
 pub mod directed_hypergraphs;
+pub mod common_functions;
 
 use ndarray::Array2;
 use numpy::{ToPyArray, PyArray2, Element};
@@ -17,6 +18,7 @@ use pyo3::exceptions::PyException;
 use undirected_hypergraphs::*;
 use directed_hypergraphs::*;
 use types::*; 
+use common_functions::*;
 
 /*
 fn print_type_of<T>(_: &T) {
