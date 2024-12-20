@@ -9,6 +9,7 @@ use ndarray::{
     ArrayView1,
     Axis,
     s,
+    stack,
 };
 use std::collections::{HashSet, HashMap};
 use indexmap::IndexSet;
@@ -322,13 +323,30 @@ fn compute_head_tail_inc_mat(
                 }
             }),
             
-    HyperedgeEnd::Tail => inc_mat.map(|&x| {
-                if x > 0 {
-                    0
-                } else {
-                    x
-                }
-            })
+    // NOTE(jim). The tail incidence matrix has to have the self
+    // edges manually added, hence the relatively higher complexity 
+    // of this than the head incidence matrix.
+    HyperedgeEnd::Tail => stack(
+            Axis(0),
+            &inc_mat
+                .axis_iter(Axis(0))
+                .map(|a| {
+                    if a.sum() == 1 { 
+                        a.to_owned()
+                    } else {
+                        a.map(|&x| 
+                            if x > 0 {
+                                0
+                            } else {
+                                x.abs()
+                            })
+                    }
+                })
+                .collect::<Vec<_>>()
+                .iter() // have to go back through and convert owned arrays to views ¯\_(ツ)_/¯
+                .map(|a| a.view()) 
+                .collect::<Vec<_>>() 
+        ).expect("Error creating stacked array")
     }
 }
 
@@ -726,7 +744,7 @@ mod tests {
     #[test]
     fn di_compute_head_tail_incidence_matrix_t() {
         
-        let data = array![
+	    let data = array![
             [ 0,  1,  2,],
             [ 0,  1,  2,],
             [ 0,  1,  2,],
@@ -740,44 +758,52 @@ mod tests {
         ];
         
         let expected_head = array![
-            [0,  1,  0],
-            [0, 0,  1],
-            [ 1,  0, 0],
-            [0,  1, 0],
-            [ 0, 0,  1],
-            [ 1, 0,  0],
-            [0,  0,  1],
-            [1,  0,  0],
-            [0,  1,  0],
-            [0,  0,  1],
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+            [0, 0, 1],
+            [1, 0, 0],
+            [0, 0, 1],
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 1, 0],
+            [0, 0, 1]
         ];
         
         let expected_tail = array![
-            [-1,  0,  0],
-            [-1, -1,  0],
-            [ 0,  0, -1],
-            [-1,  0, -1],
-            [ 0, -1,  0],
-            [ 0, -1,  0],
-            [-1,  0,  0],
-            [0,  0,  0],
-            [0,  0,  0],
-            [0,  0,  0],
+            [1, 0, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+            [0, 1, 0],
+            [0, 0, 1],
+            [1, 0, 0],
+            [0, 1, 0],
+            [1, 0, 0],
+            [1, 0, 1],
+            [1, 1, 0]
         ];
         
         let ps = compute_progset(&data);
         let out = compute_incidence_matrix(&ps.0);
         let out_head = compute_head_tail_inc_mat(&out, HyperedgeEnd::Head);
         let out_tail = compute_head_tail_inc_mat(&out, HyperedgeEnd::Tail);
+        
+        
+        println!("Incidence matrix");
+        println!("{:?}", out);
 
+        println!("Head");
         println!("{:?}", expected_head);
         println!("{:?}", out_head);
         
+        println!("Tail");
         println!("{:?}", expected_tail);
         println!("{:?}", out_tail);
         
         // NOTE - the order of axes does not matter, so use an iterator over
         // rows and collect them into a HashSet for comparison.
+        
+        println!("Test Head");
         assert_eq!(
             out_head
                 .axis_iter(Axis(0))
@@ -786,6 +812,8 @@ mod tests {
                 .axis_iter(Axis(0))
                 .collect::<HashSet<_>>()
         );
+        
+        println!("Test Tail");
         assert_eq!(
             out_tail
                 .axis_iter(Axis(0))
