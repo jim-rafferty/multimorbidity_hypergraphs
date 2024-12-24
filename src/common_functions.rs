@@ -19,7 +19,7 @@ pub fn diag_sprs(
 pub fn degree_centrality<T: std::clone::Clone>(
     incidence_matrix: &Array2<T>, 
     rep: Representation,
-    weights: Option<Vec<f64>> // maybe a vec?
+    weights: Option<Vec<f64>> 
 ) -> Vec<f64> where f64: From<T>{
     
     match (rep, weights) {
