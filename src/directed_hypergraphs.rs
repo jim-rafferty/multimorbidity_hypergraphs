@@ -13,8 +13,8 @@ use ndarray::{
     s,
     stack,
 };
-use std::collections::{HashSet, HashMap};
-use indexmap::IndexSet;
+use std::collections::HashSet;
+use indexmap::{IndexMap, IndexSet};
 use itertools::izip;
 
 
@@ -22,22 +22,22 @@ pub fn compute_directed_hypergraph(
     data: &Array2<i8>
     ) -> DiHypergraphBase {
    
-        let ps = compute_progset(&data);
-        let inc_mat = compute_incidence_matrix(&ps.0);
-        let info = compute_hyperedge_info(&ps.0);
-        let hyperedge_weights = compute_hyperedge_weights(
-            &ps.0,
-            &info.0,
-            &ps.1
-        );
-        let hyperedge_wl = compute_hyperedge_worklist(&inc_mat);
-        
-        let hyperarc: (Array1<HyperArc>, Array1<f64>) = compute_hyperarc_weights(
-            &hyperedge_wl,
-            &ps.1, // hyperedge_prev 
-            &ps.2, // hyperarc_prev 
-            &hyperedge_weights,
-        );
+    let ps = compute_progset(&data);
+    let inc_mat = compute_incidence_matrix(&ps.0);
+    let hyperedge_wl = compute_hyperedge_worklist(&inc_mat);
+    let info = compute_hyperedge_info(&hyperedge_wl);
+    let hyperedge_weights = compute_hyperedge_weights(
+        &hyperedge_wl,
+        &info.0,
+        &ps.1
+    );
+    
+    let hyperarc: (Array1<HyperArc>, Array1<f64>) = compute_hyperarc_weights(
+        &hyperedge_wl,
+        &ps.1, // hyperedge_prev 
+        &ps.2, // hyperarc_prev 
+        &hyperedge_weights,
+    );
    
     DiHypergraphBase{
         incidence_matrix: inc_mat,
@@ -284,13 +284,13 @@ fn compute_hyperedge_worklist(inc_mat: &Array2<i8>) -> IndexSet<Array1<i8>> {
 
 fn compute_incidence_matrix(progset: &IndexSet<Array1<i8>>) -> Array2<i8> {
     
-    let progset_vec: Vec<_> = progset.into_iter().collect();
+    //let progset_vec: Vec<_> = progset.into_iter().collect();
     
-    let n_diseases = progset_vec[0].len();
+    let n_diseases = progset[0].len();
     
     let mut hyperedges: IndexSet<Array1<i8>> = IndexSet::new();
     
-    for a in progset_vec.iter() {
+    for a in progset.iter() {
         
         let mut edge = Array::zeros(n_diseases);
         
@@ -315,8 +315,6 @@ fn compute_incidence_matrix(progset: &IndexSet<Array1<i8>>) -> Array2<i8> {
         .collect::<Array1<_>>()
         .into_shape((n_edges, n_diseases))
         .unwrap()
-       
-        
 }
 
 
@@ -402,6 +400,39 @@ fn compute_progset(data: &Array2<i8>) ->
     let mut hyperarc_prev: Array2<f64>  = Array::zeros((max_hyperedges, n_diseases));
     let mut hyperedge_prev: Array1<f64> = Array::zeros(max_hyperedges);
 
+
+    /*
+    // start with single diseases
+    let mut out: IndexSet<Array1<i8>> =  (0..n_diseases)
+        .map(|i| {
+            let mut i_vec: Vec<i8> = vec![i as i8];
+            i_vec.extend(&vec![-1; n_diseases - 1]);
+            Array1::from_vec(i_vec)
+        })
+        .collect();
+
+     let additional: IndexSet<Array1<i8>> = (0..n_rows)
+        .flat_map(|i| {
+                let progset_data = compute_single_progset(&data.index_axis(Axis(0), i).to_owned());
+                for (a, b, z) in izip!(
+                    progset_data.1, 
+                    progset_data.2, 
+                    progset_data.4.clone()
+                ) {
+                    hyperarc_prev[[a, b as usize]] += z;
+                }
+                
+                for (c, z) in izip!(progset_data.3, progset_data.4) {
+                    hyperedge_prev[c] += z;
+                }
+                progset_data.0
+            }
+         )
+        .collect();
+    */
+
+
+    
     let mut out: IndexSet<Array1<i8>> = (0..n_rows)
         //.into_iter()
         .flat_map(|i| {
@@ -433,12 +464,13 @@ fn compute_progset(data: &Array2<i8>) ->
     
     out.extend(additional);
     
+    
     (out, hyperedge_prev, hyperarc_prev)
     
 }
 
-fn bincount(arr: &ArrayView1<usize>) -> HashMap<usize, usize> {
-    arr.iter().fold(HashMap::new(), |mut acc, &value| {
+fn bincount(arr: &ArrayView1<usize>) -> IndexMap<usize, usize> {
+    arr.iter().fold(IndexMap::new(), |mut acc, &value| {
         *acc.entry(value).or_insert(0) += 1;
         acc
     })
@@ -564,6 +596,7 @@ mod tests {
     use super::*;
     
     use ndarray::array;
+    use std::collections::{HashSet, HashMap};
     
     
     #[test]
@@ -737,6 +770,8 @@ mod tests {
         let ps = compute_progset(&data);
         let out = compute_incidence_matrix(&ps.0);
         
+        println!("{:?}", ps);
+        
         println!("{:?}", expected);
         println!("{:?}", out);
         
@@ -750,7 +785,6 @@ mod tests {
                 .axis_iter(Axis(0))
                 .collect::<HashSet<_>>()
         );
-        
     }
     #[test]
     fn di_compute_head_tail_incidence_matrix_t() {
@@ -881,12 +915,13 @@ mod tests {
                 .map(|view| view.to_owned())
                 .collect::<IndexSet<_>>()
         );
+        
     }
     
    #[test]
     fn di_construct_hyperedge_worklist_larger_set_t() {
         
-        let data = array![[0, 1, 2],
+        let data = array![[0, 1, 2], //conds_worklist
         [0, 1, 2],
         [0, 1, 2],
         [2, 0, 1],
@@ -1095,10 +1130,12 @@ mod tests {
         
         assert_eq!(out.0, expected.0);
         assert_eq!(out.1, expected.1);
+        
+        
     }
     
     #[test]
-    fn di_compute_hyperarc_weights_oh_dear_t() {
+    fn di_compute_hyperarc_weights_larger_set_t() {
         let data = array![[0, 1, 2],
             [0, 1, 2],
             [0, 1, 2],
@@ -1197,13 +1234,13 @@ mod tests {
             
         let ps = compute_progset(&data);
         let inc_mat = compute_incidence_matrix(&ps.0);
-        let info = compute_hyperedge_info(&ps.0);
+        let hyperedge_wl = compute_hyperedge_worklist(&inc_mat);
+        let info = compute_hyperedge_info(&hyperedge_wl);
         let hyperedge_weights = compute_hyperedge_weights(
-            &ps.0,
+            &hyperedge_wl,
             &info.0,
             &ps.1
         );
-        let hyperedge_wl = compute_hyperedge_worklist(&inc_mat);
         
         let hyperarc: (Array1<HyperArc>, Array1<f64>) = compute_hyperarc_weights(
             &hyperedge_wl,
@@ -1211,6 +1248,7 @@ mod tests {
             &ps.2, // hyperarc_prev 
             &hyperedge_weights,
         );
+   
    
         let expected = DiHypergraphBase{
             incidence_matrix: inc_mat,
@@ -1257,17 +1295,23 @@ mod tests {
         let exp_edge_degree_tail = vec![1., 1., 1., 1., 1., 1., 1., 1., 2., 2.];
         
         println!("Incidence matrix");
-        println!("{:?}", h.incidence_matrix);
+        println!("{:?}\n", h.incidence_matrix);
+        println!("Incidence matrix head");
+        println!("{:?}\n", out_head);
+        println!("Incidence matrix tail");
+        println!("{:?}\n", out_tail);
         println!("Hyperedge weights");
-        println!("{:?}", h.hyperedge_weights);
+        println!("{:?}\n", h.hyperedge_weights);
         println!("Hyperarc weights");
-        println!("{:?}", h.hyperarc_weights);
+        println!("{:?}\n", h.hyperarc_weights);
         
-        // This is probably fucking up because the compute_directed_hypergraph function is using the hyperarc
-        // worklist instead of the hyperedge worklist
-        let node_degree_head = degree_centrality(&out_head, Representation::Standard, Some(h.hyperedge_weights.to_vec()));
+
+        let node_degree_head = degree_centrality(&out_head, Representation::Standard, Some(h.hyperarc_weights.to_vec()));
         let edge_degree_head = degree_centrality(&out_head, Representation::Dual, None);
         let edge_degree_tail = degree_centrality(&out_tail, Representation::Dual, None);
+        
+        
+        
         
         assert_eq!(node_degree_head, exp_node_degree_head);
         assert_eq!(edge_degree_head, exp_edge_degree_head);

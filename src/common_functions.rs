@@ -28,7 +28,7 @@ pub fn degree_centrality<T: std::clone::Clone>(
                 incidence_matrix.mapv(|x| f64::from(x)).view(), 0.0
             );
             let w = diag_sprs(&weight_array);
-            let m = &w * & inc_mat;
+            let m = &w * &inc_mat;
             m.to_dense().sum_axis(Axis(0)).to_vec()
         }
         (Representation::Standard, None) => {
